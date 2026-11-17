@@ -22,6 +22,11 @@ export interface Routine {
   minutes: number;
   exercises: Exercise[];
   createdAt: string;
+  /** 트레이너가 배정한 루틴이면 배정한 트레이너 id */
+  assignedBy?: string | null;
+  assignedByName?: string | null;
+  /** 클라우드에서 불러온 경우 루틴 소유자(회원) id */
+  ownerId?: string;
 }
 
 /** 진행 중인 운동 세션 — 입력 중인 값은 문자열로 보관한다 */
@@ -75,4 +80,14 @@ export interface WorkoutRecord {
 
 export interface Prefs {
   restSec: number;
+}
+
+/** 로그인한 사용자의 프로필 */
+export interface Profile {
+  userId: string;
+  displayName: string;
+  role: 'member' | 'trainer';
+  trainerId: string | null;
+  trainerName: string | null;
+  trainerCode: string | null;
 }

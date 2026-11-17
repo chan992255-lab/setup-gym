@@ -10,6 +10,7 @@ import {
   Play,
   Sparkles,
   Trash2,
+  UserRound,
   Weight,
 } from 'lucide-react';
 import RestTimer, { type RestState } from './RestTimer';
@@ -24,9 +25,12 @@ interface TodayTabProps {
   records: WorkoutRecord[];
   prefs: Prefs;
   setPrefs: Dispatch<SetStateAction<Prefs>>;
-  onSaved: (record: WorkoutRecord) => void;
+  onSaved: (record: WorkoutRecord) => Promise<void>;
   notify: (message: string) => void;
   onGoRoutines: () => void;
+  assignedRoutines: Routine[];
+  guest: boolean;
+  onLogin: () => void;
 }
 
 const playChime = () => {
@@ -64,6 +68,9 @@ export default function TodayTab({
   onSaved,
   notify,
   onGoRoutines,
+  assignedRoutines,
+  guest,
+  onLogin,
 }: TodayTabProps) {
   const [part, setPart] = useState<BodyPart>('upper');
   const [rest, setRest] = useState<RestState | null>(null);
@@ -137,18 +144,22 @@ export default function TodayTab({
     });
   };
 
-  const saveSession = () => {
+  const saveSession = async () => {
     if (!session) return;
     const record = recordFromSession(session);
     if (!record) {
       notify('완료 체크한 세트가 없어요. 세트를 먼저 완료해 주세요.');
       return;
     }
-    onSaved(record);
-    setSession(null);
-    setRest(null);
-    setConfirmDiscard(false);
-    notify('운동 기록을 저장했어요 💪');
+    try {
+      await onSaved(record);
+      setSession(null);
+      setRest(null);
+      setConfirmDiscard(false);
+      notify('운동 기록을 저장했어요 💪');
+    } catch {
+      notify('기록을 저장하지 못했어요. 다시 시도해 주세요.');
+    }
   };
 
   /* ─────────────── 운동 진행 화면 ─────────────── */
@@ -341,6 +352,22 @@ export default function TodayTab({
 
   return (
     <div className="space-y-5 animate-fade-in">
+      {guest && (
+        <button
+          type="button"
+          onClick={onLogin}
+          className="flex w-full items-center justify-between gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-3.5 py-2.5 text-left"
+        >
+          <span className="text-[11.5px] font-bold leading-relaxed text-emerald-100/80">
+            체험 모드로 둘러보는 중이에요.
+            <span className="ml-1 text-emerald-300/60">로그인하면 기록이 계정에 저장되고 트레이너에게 루틴을 받을 수 있어요.</span>
+          </span>
+          <span className="shrink-0 rounded-lg bg-emerald-400 px-2.5 py-1 text-[11px] font-extrabold text-ink-950">
+            로그인
+          </span>
+        </button>
+      )}
+
       <section className="card relative overflow-hidden p-4">
         <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-emerald-400/10 blur-2xl" />
         <p className="label">{formatKoreanDate(new Date())}</p>
@@ -358,12 +385,64 @@ export default function TodayTab({
         </div>
       </section>
 
+      {assignedRoutines.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="flex items-center gap-1.5 text-[13px] font-extrabold text-emerald-200">
+              <UserRound size={13} /> 트레이너 배정 루틴
+            </h3>
+            <span className="text-[10.5px] font-semibold text-white/35">
+              {assignedRoutines[0]?.assignedByName ?? '트레이너'}님이 배정
+            </span>
+          </div>
+          {assignedRoutines.map((routine) => {
+            const meta = PART_META[routine.part];
+            const sets = routine.exercises.reduce((acc, item) => acc + item.sets, 0);
+            return (
+              <article
+                key={routine.id}
+                className="rounded-2xl border border-emerald-400/30 bg-gradient-to-br from-emerald-400/[0.12] to-lime-300/[0.04] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <span className={`badge ${meta.badge}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+                      {meta.label}
+                    </span>
+                    <h4 className="mt-2 text-[16.5px] font-extrabold leading-snug text-white">{routine.name}</h4>
+                    <p className="mt-1 text-[11.5px] font-semibold text-emerald-200/60">
+                      {routine.assignedByName ?? '트레이너'} 트레이너 배정 · {routine.exercises.length}종목 · {sets}세트
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {routine.exercises.slice(0, 5).map((item) => (
+                    <span
+                      key={item.id}
+                      className="rounded-lg bg-black/25 px-2 py-1 text-[10.5px] font-semibold text-white/55"
+                    >
+                      {item.name} {item.sets}×{item.reps}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startRoutine(routine)}
+                  className="btn-primary mt-3 w-full py-2.5 text-[13.5px]"
+                >
+                  <Play size={14} strokeWidth={3} /> 이 루틴 시작
+                </button>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
       <section>
         <div className="flex items-center justify-between px-1">
           <h3 className="text-[13px] font-extrabold text-white/80">운동 부위</h3>
           <span className="text-[11px] font-semibold text-white/35">{meta.tagline}</span>
-        </div>
-        <div className="mt-2 grid grid-cols-4 gap-1.5">
+        </div>        <div className="mt-2 grid grid-cols-4 gap-1.5">
           {PART_ORDER.map((key) => {
             const item = PART_META[key];
             const active = key === part;
