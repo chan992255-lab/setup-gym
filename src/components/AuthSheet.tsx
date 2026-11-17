@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dumbbell, LogIn, UserPlus, Users } from 'lucide-react';
 import Sheet from './Sheet';
 import { useAuth } from '../lib/auth';
@@ -27,6 +27,18 @@ export default function AuthSheet({ open, onClose, onDone, initialMode = 'signin
     setPassword('');
     setError(null);
   };
+
+  // 시트를 열 때마다 깔끔한 폼으로 시작한다 (이전 계정 정보가 남지 않도록)
+  useEffect(() => {
+    if (!open) return;
+    setMode(initialMode);
+    setEmail('');
+    setPassword('');
+    setCode('');
+    setName('');
+    setError(null);
+    setBusy(false);
+  }, [open, initialMode]);
 
   const submit = async () => {
     setError(null);
