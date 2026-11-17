@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Copy,
   Dumbbell,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -12,7 +13,13 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { assignRoutineToMember, deleteRoutineRow, fetchAssignedRoutines, fetchTrainerMembers } from '../lib/cloud';
+import {
+  assignRoutineToMember,
+  deleteRoutineRow,
+  fetchAssignedRoutines,
+  fetchTrainerMembers,
+  updateAssignedRoutine,
+} from '../lib/cloud';
 import type { TrainerMember } from '../lib/cloud';
 import { PART_META, PART_ORDER, fmt, makeExercise, uid } from '../lib/data';
 import { formatRecordDate } from '../lib/dates';
@@ -39,6 +46,7 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
   const [loading, setLoading] = useState(true);
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [assigningTo, setAssigningTo] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftPart, setDraftPart] = useState<BodyPart>('upper');
   const [draftExercises, setDraftExercises] = useState<DraftExercise[]>([emptyDraft()]);
@@ -82,6 +90,26 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
     setDraftName('');
     setDraftPart('upper');
     setDraftExercises([emptyDraft()]);
+    setEditingId(null);
+    setError(null);
+  };
+
+  const startEdit = (member: TrainerMember, routine: Routine) => {
+    setAssigningTo(member.userId);
+    setEditingId(routine.id);
+    setDraftName(routine.name);
+    setDraftPart(routine.part);
+    setDraftExercises(
+      routine.exercises.length > 0
+        ? routine.exercises.map((item) => ({
+            key: item.id,
+            name: item.name,
+            sets: String(item.sets),
+            reps: String(item.reps),
+            weight: String(item.weight),
+          }))
+        : [emptyDraft()],
+    );
     setError(null);
   };
 
@@ -110,22 +138,32 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
     setBusy(true);
     setError(null);
     try {
-      await assignRoutineToMember({
-        memberId: member.userId,
-        trainerId: profile.userId,
-        trainerName: profile.displayName,
-        name,
-        part: draftPart,
-        focus: `${profile.displayName} 트레이너 배정`,
-        minutes: Math.max(20, exercises.length * 8),
-        exercises,
-      });
+      if (editingId) {
+        await updateAssignedRoutine(editingId, {
+          name,
+          part: draftPart,
+          exercises,
+          minutes: Math.max(20, exercises.length * 8),
+        });
+        notify(`"${name}" 배정 루틴을 수정했어요.`);
+      } else {
+        await assignRoutineToMember({
+          memberId: member.userId,
+          trainerId: profile.userId,
+          trainerName: profile.displayName,
+          name,
+          part: draftPart,
+          focus: `${profile.displayName} 트레이너 배정`,
+          minutes: Math.max(20, exercises.length * 8),
+          exercises,
+        });
+        notify(`${member.displayName}님에게 "${name}" 루틴을 배정했어요.`);
+      }
       resetAssignForm();
       setAssigningTo(null);
       await refresh();
-      notify(`${member.displayName}님에게 "${name}" 루틴을 배정했어요.`);
     } catch {
-      setError('루틴을 배정하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      setError(editingId ? '루틴을 수정하지 못했어요. 잠시 후 다시 시도해 주세요.' : '루틴을 배정하지 못했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setBusy(false);
     }
@@ -333,14 +371,24 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
                             삭제
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmRoutine(routine.id)}
-                            aria-label={`${routine.name} 배정 루틴 삭제`}
-                            className="grid h-6 w-6 place-items-center rounded-md text-white/30"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(member, routine)}
+                              aria-label={`${routine.name} 배정 루틴 수정`}
+                              className="grid h-6 w-6 place-items-center rounded-md text-white/30"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRoutine(routine.id)}
+                              aria-label={`${routine.name} 배정 루틴 삭제`}
+                              className="grid h-6 w-6 place-items-center rounded-md text-white/30"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </>
                         )}
                       </li>
                     ))}
@@ -349,6 +397,11 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
 
                 {assigningTo === member.userId ? (
                   <div className="mt-2.5 space-y-2 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.05] p-2.5">
+                    {editingId && (
+                      <p className="rounded-lg bg-emerald-400/10 px-2 py-1 text-[10.5px] font-extrabold text-emerald-200">
+                        배정 루틴 수정 중 · 저장하면 회원에게 바로 반영돼요
+                      </p>
+                    )}
                     <input
                       className="field py-2"
                       value={draftName}
@@ -446,7 +499,7 @@ export default function TrainerTab({ notify }: TrainerTabProps) {
                         disabled={busy}
                         className="btn-primary flex-1 py-2.5 text-[13px]"
                       >
-                        {busy ? '배정 중…' : '루틴 배정하기'}
+                        {busy ? '처리 중…' : editingId ? '수정 저장' : '루틴 배정하기'}
                       </button>
                       <button
                         type="button"

@@ -266,3 +266,23 @@ export async function assignRoutineToMember(input: {
   if (error) throw error;
   return mapRoutine(data as RoutineRow);
 }
+
+/** 트레이너가 이미 배정한 루틴의 이름·부위·종목을 수정 */
+export async function updateAssignedRoutine(
+  id: string,
+  patch: { name: string; part: BodyPart; exercises: Exercise[]; minutes?: number },
+): Promise<Routine> {
+  const { data, error } = await client()
+    .from('setup_routines')
+    .update({
+      name: patch.name,
+      part: patch.part,
+      exercises: patch.exercises,
+      ...(patch.minutes ? { minutes: patch.minutes } : {}),
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return mapRoutine(data as RoutineRow);
+}
