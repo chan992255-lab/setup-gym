@@ -13,6 +13,18 @@
     height: 100%;
   }
 
+  /* 모바일 앱처럼 스크롤바 없이 깔끔하게 */
+  html {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+  }
+
   body {
     @apply bg-ink-950 text-white antialiased;
     background-image:
