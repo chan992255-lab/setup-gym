@@ -68,10 +68,19 @@ const client = () => {
   return supabase;
 };
 
+const currentUserId = async (): Promise<string> => {
+  const { data } = await client().auth.getUser();
+  const id = data.user?.id;
+  if (!id) throw new Error('not_signed_in');
+  return id;
+};
+
 export async function fetchRoutines(): Promise<Routine[]> {
+  const userId = await currentUserId();
   const { data, error } = await client()
     .from('setup_routines')
     .select('*')
+    .eq('owner_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data as RoutineRow[]).map(mapRoutine);
@@ -125,9 +134,11 @@ export async function deleteRoutineRow(id: string): Promise<void> {
 }
 
 export async function fetchRecords(): Promise<WorkoutRecord[]> {
+  const userId = await currentUserId();
   const { data, error } = await client()
     .from('setup_workouts')
     .select('*')
+    .eq('user_id', userId)
     .order('finished_at', { ascending: false })
     .limit(200);
   if (error) throw error;
