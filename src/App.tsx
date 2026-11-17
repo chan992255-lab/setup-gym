@@ -74,11 +74,13 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (tab === 'trainer' && !trainerMode) {
+    if (!ready || tab !== 'trainer') return;
+    if (user && !profile) return; // 프로필을 불러오는 동안은 그대로 둔다
+    if (profile?.role !== 'trainer') {
       setTab('today');
       if (window.location.hash.includes('trainer')) window.location.hash = '#/today';
     }
-  }, [tab, trainerMode]);
+  }, [ready, tab, user, profile]);
 
   useEffect(() => {
     document.title = TITLES[tab];
